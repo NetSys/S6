@@ -1,0 +1,22 @@
+.PHONY: all clean clean_all rapidjson
+
+RAPIDJSON_NAME=rapidjson-0.11
+TOOLSET=gcc
+
+RAPIDJSON_SRC=$(RAPIDJSON_NAME)
+
+all: rapidjson
+
+clean:
+	find . -mindepth 1 -maxdepth 1 -type d -name $(RAPIDJSON_NAME) | xargs rm -rf
+
+clean_all: clean
+	find . -mindepth 1 -maxdepth 1 -type f -name $(RAPIDJSON_NAME).tar.gz | xargs rm -f
+
+$(RAPIDJSON_NAME).zip:
+	wget https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/rapidjson/$(RAPIDJSON_NAME).zip
+
+$(RAPIDJSON_SRC): $(RAPIDJSON_NAME).zip
+	unzip $(RAPIDJSON_NAME).zip 
+
+rapidjson: $(RAPIDJSON_SRC) 

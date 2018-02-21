@@ -1,0 +1,14 @@
+# Format:
+# <alias> <hostname | IP address>
+# ...
+# All hosts must be accessible with the private key file "id_rsa"
+# Make sure you added id_rsa.pub to ~/.ssh/authorized_keys
+
+#center 172.31.41.142 172.31.33.140
+#mcgee 172.31.41.194 172.31.41.148
+#soda 172.31.46.220 172.31.41.77
+#hodoo 172.31.36.190 172.31.41.61
+
+
+# helper alias in case you want local operations
+localhost 127.0.0.1 127.0.0.1

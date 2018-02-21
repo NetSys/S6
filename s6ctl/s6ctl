@@ -1,0 +1,102 @@
+#!/usr/bin/env python
+
+import argparse
+import io
+import os
+import socket
+import sys
+
+import cli
+import commands
+import s6controller
+
+
+class S6CLI(cli.CLI):
+
+    def __init__(self, s6ctl, cmd_db, **kwargs):
+        self.s6ctl = s6ctl
+        self.cmd_db = cmd_db
+        self.this_dir = os.path.dirname(os.path.realpath(__file__))
+
+        super(S6CLI, self).__init__(self.cmd_db.cmdlist, **kwargs)
+
+    def get_var_attrs(self, var_token, partial_word):
+        return self.cmd_db.get_var_attrs(self, var_token, partial_word)
+
+    def split_var(self, var_type, line):
+        try:
+            return self.cmd_db.split_var(self, var_type, line)
+        except self.InternalError:
+            return super(S6CLI, self).split_var(var_type, line)
+
+    def bind_var(self, var_type, line):
+        try:
+            return self.cmd_db.bind_var(self, var_type, line)
+        except self.InternalError:
+            return super(S6CLI, self).bind_var(var_type, line)
+
+    def print_banner(self):
+        self.fout.write('Type "help" for more information.\n')
+
+    def get_default_args(self):
+        return [self]
+
+    def get_prompt(self):
+        return '%s (app:%s) $ ' % (socket.gethostname(), self.s6ctl.nf_name)
+
+
+def print_usage(parser):
+    parser.print_help(file=sys.stderr)
+    sys.exit(2)
+
+
+def run_cli(app, instream=sys.stdin):
+    s6ctl = s6controller.S6Controller(app)
+    cli = S6CLI(s6ctl, commands, fin=instream)
+
+    try:
+        cli.loop()
+
+        # end of loop due to error? let them know which command failed.
+        if cli.stop_loop:
+            if cli.last_cmd:
+                cli.ferr.write('  Command failed: %s\n' % cli.last_cmd)
+            sys.exit(1)
+    finally:
+        if instream is sys.stdin:
+            cli.fout.write('Cleaning up...\n')
+        s6ctl.tear_down()
+
+
+def main():
+    avail_apps = s6controller.nf_bins.keys()
+    default_app = 'echo' if 'echo' in avail_apps else avail_apps[0]
+
+    parser = argparse.ArgumentParser(description='S6 Controller')
+    parser.add_argument('-a', '--app', default=default_app,
+                        help='specify an application to test',
+                        choices=avail_apps)
+    parser.add_argument('command', nargs=argparse.REMAINDER,
+                        help='Command(s) to execute (use -- as a delimiter)')
+
+    args = parser.parse_args()
+    remainder = args.command
+
+    if len(remainder) == 0:
+        run_cli(args.app)
+    else:
+        cmds = []
+        line_buf = []
+
+        for arg in remainder:
+            if arg == '--':
+                cmds.append(' '.join(line_buf))
+                line_buf = []
+            else:
+                line_buf.append(arg)
+
+        cmds.append(u' '.join(line_buf))
+        run_cli(args.app, io.StringIO('\n'.join(cmds)))
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,28 @@
+.PHONY: all clean cleanall dpdk
+
+DPDK_VER=17.05
+DPDK_NAME=dpdk-$(DPDK_VER)
+
+DPDK_SRC=$(DPDK_NAME)
+
+CORES ?= $(shell nproc ||  echo 1)
+
+all: dpdk
+
+clean:
+	find . -mindepth 1 -maxdepth 1 -type d -name $(DPDK_NAME) | xargs rm -rf
+
+cleanall: clean
+	find . -mindepth 1 -maxdepth 1 -type f -name $(DPDK_NAME).tar.gz | xargs rm -f
+
+$(DPDK_NAME).tar.gz:
+	@echo $(DPDK_SRC)
+	wget http://dpdk.org/browse/dpdk/snapshot/$(DPDK_NAME).tar.gz
+
+$(DPDK_SRC): $(DPDK_NAME).tar.gz
+	@echo $(DPDK_NAME)
+	tar xvfz $(DPDK_NAME).tar.gz
+
+dpdk: $(DPDK_SRC)
+	cd $(DPDK_SRC); make config T=x86_64-native-linuxapp-gcc
+	cd $(DPDK_SRC); make -j $(CORES) EXTRA_CFLAGS="-g -w -fPIC" 

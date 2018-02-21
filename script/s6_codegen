@@ -1,0 +1,112 @@
+#! /usr/bin/env python2.7
+
+import sys
+import os
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+commands = ['help', 'generate_all', 'generate', 'clean_all', 'clean']
+
+# app_param structure
+# app_params[app_name] = [target_directory (OUT), 
+#                        microtask_directory (IN), 
+#                        object_directory (IN)]
+app_params = {}
+app_params['tests'] = ['../gen_source/test', 
+                        '../test',
+                        '../user_source/samples/objects'];
+app_params['samples'] = ['../gen_source/samples_sample', 
+                        '../user_source/samples/apps/sample',
+                        '../user_source/samples/objects'];
+app_params['eval'] = ['../gen_source/samples_eval', 
+                        '../user_source/samples/apps/eval',
+                        '../user_source/samples/objects'];
+app_params['prads'] = ['../gen_source/prads/', 
+                        '../user_source/prads/src',
+                        '../user_source/prads/objects'];
+app_names = app_params.keys()
+
+def print_log(msg):
+    color_start = '\033[33m'
+    color_end = '\033[0m'
+    print '%sS6CodeGen> %s %s' % (color_start, msg, color_end)
+
+def print_usage():
+    print 'Usage: python %s %s' % (sys.argv[0], '|'.join(commands)) 
+    print '\thelp: show this message'
+    print '\tgenerate_all: create source code of all applications.'
+    print '\tgenerate [list of app name]: create source code of '\
+            'chosen applications'
+    print '\tclean_all: clean all generated source code'
+    print '\tclean [list of app name]: clean generated source code of '\
+            'chosen applications'
+    
+    print 'list of available applications: %s' % ','.join(app_names)
+
+def generate(app_name):
+    print_log('Build application %s ' % app_name)
+    ret = subprocess.call(["./s6_codegen_history.sh", "generate"] 
+            + app_params[app_name]);
+
+    if ret != 0:
+        print_log('Stop s6_codegen_history.py')
+        exit(1)
+
+def clean(app_name):
+    print_log('Clean application %s ' % app_name)
+    try:
+        ret = subprocess.call(["./s6_codegen_history.sh", "clean"] 
+                + app_params[app_name]);
+    except KeyboardInterrupt:
+        exit(1)
+            
+
+    if ret != 0:
+        print_log('Stop s6_codegen_history.py')
+        exit(1)
+
+def main():
+    os.chdir(SCRIPT_DIR)
+
+    command = 'help'
+    if len(sys.argv) >= 2:
+        command = sys.argv[1]
+    
+    if command not in commands:
+        print_log('"%s" is not valid commands' % command)
+        print_usage();
+        sys.exit(2)
+
+    if command == 'help':
+        print_usage();
+
+    elif command == 'generate_all':
+        for app_name in app_names:
+            generate(app_name)
+
+    elif command == 'generate':
+        if len(sys.argv) < 3:
+            print_log('Missing application names to generate')
+            print_usage()
+            sys.exit(2)
+        
+        for app_name in sys.argv[2:]:
+            generate(app_name)
+
+    elif command == 'clean_all':
+        for app_name in app_names:
+            clean(app_name)
+        
+    elif command == 'clean':
+        if len(sys.argv) < 3:
+            print_log('Missing application names to clean')
+            print_usage()
+            sys.exit(2)
+        
+        for app_name in sys.argv[2:]:
+            clean(app_name)
+
+if __name__ == '__main__':
+    main()

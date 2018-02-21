@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package s6.pb;
+
+/**
+ * The RandomUpdateNK module rewrites a specified field (`offset` and `size`) in a packet
+ * with a random value between a specified min and max values.
+ *
+ * __Input Gates__: 1
+ * __Output Gates__: 1
+ */
+message RandomUpdateNKArg {
+  /**
+   * RandomUpdateNK's Field specifies where to rewrite, and what values to rewrite
+   * in each packet processed.
+   */
+  uint32 n = 1; ///  The range (offset-size) should satisfy below
+  uint32 k = 2; /// "range mod n == k"
+  
+	message Field {
+    int64 offset = 1; /// Offset in bytes for where to rewrite.
+    uint64 size = 2; /// The number of bytes to write.
+    uint64 min = 3; /// The minimum value to insert into the packet.
+    uint64 max = 4; /// The maximum value to insert into the packet.
+  }
+  repeated Field fields = 3; /// A list of Random Update Fields.
+}
+
+/*
+ * The function `clear()` for RandomUpdateNK takes no parameters and clears all
+ * state in the module.
+ */
+message RandomUpdateNKCommandClearArg {
+}
+
+/**
+ * The FlowGenNK module generates simulated TCP flows of packets with correct SYN/FIN flags and sequence numbers.
+ * This module is useful for testing, e.g., a NAT module or other flow-aware code.
+ * Packets are generated off a base, "template" packet by modifying the IP src/dst and TCP src/dst. By default, only the ports are changed and will be modified by incrementing the template ports by up to 2000 more than the template values.
+ *
+ * __Input Gates__: 0
+ * __Output Gates__: 1
+ */
+message FlowGenNKArg {
+  bytes template = 1; /// The packet "template". All data packets are derived from this template and contain the same payload.
+  double pps = 2; /// The total number of packets per second to generate.
+  double flow_rate = 3; /// The number of new flows to create every second. flow_rate must be <= pps.
+  double flow_duration = 4; /// The lifetime of a flow in seconds.
+  string arrival = 5; /// The packet arrival distribution -- must be either "uniform" or "exponential"
+  string duration = 6; /// The flow duration distribution -- must be either "uniform" or "pareto"
+  bool quick_rampup = 7; /// Whether or not to populate the flowgenerator with initial flows (start generating full pps rate immediately) or to wait for new flows to be generated naturally (all flows have a SYN packet).
+  uint32 ip_src_range = 8; /// When generating new flows, FlowGen modifies the template packet by changing the IP src, incrementing it by at most ip_src_range (e.g., if the base packet is 10.0.0.1 and range is 5, it will generate packets with IPs 10.0.0.1-10.0.0.6).
+  uint32 ip_dst_range = 9; /// When generating new flows, FlowGen modifies the template packet by changing the IP dst, incrementing it by at most ip_dst_range.
+  uint32 port_src_range = 10; /// When generating new flows, FlowGen modifies the template packet by changing the TCP port, incrementing it by at most port_src_range.
+  uint32 port_dst_range = 11; /// When generating new flows, FlowGen modifies the template packet by changing the TCP dst port, incrementing it by at most port_dst_range.
+	uint32 n = 12; ///  The range (offset-size) should satisfy below
+	uint32 k = 13; /// "range mod n == k"
+}
+
+/**
+ * The FlowGen module has a command `set_burst(...)` that allows you to specify
+ * the maximum number of packets to be stored in a single PacketBatch released
+ * by the module.
+ */
+message FlowGenNKCommandSetBurstArg {
+  uint64 burst = 1;
+}
+

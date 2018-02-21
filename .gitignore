@@ -1,0 +1,13 @@
+*.pcap
+*.a
+*.so
+*.pyc
+*.o
+*.swp
+.make.*dep
+cscope.out
+bin/
+test/bin
+test/test_result/
+!deps/Makefile.*
+*.vim

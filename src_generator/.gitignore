@@ -1,0 +1,4 @@
+*.o
+*.swp
+*_test
+test/generated_code/

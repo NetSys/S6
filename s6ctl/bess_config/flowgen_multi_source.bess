@@ -1,0 +1,86 @@
+import os
+import scapy.all as scapy
+import string
+
+NUM_LOCAL_CONTAINERS = int($BESS_CONTAINERS!'3')
+FLOWGEN_BITMAP = int($FLOWGEN_BITMAP!'0x3', 16)
+FLOWGEN_TOTAL = int($FLOWGEN_TOTAL!'2')
+MTU = 1514
+KPPS = int ($BESS_KPPS!'1000')
+NUM_FLOWS = int($BESS_NUM_FLOWS!'65536')
+
+NUM_VPORTS = 1 # per container
+NUM_QUEUES = 1
+# QEMU 2.8 supports up to 1024, older versions are hardcoded with 256
+QSIZE = int($BESS_QSIZE!'2048')
+
+def get_karray(bitmap):
+    karray = []
+    i = 0
+    while bitmap:
+        if bitmap % 2 == 1:
+            karray.append(i)
+        bitmap = bitmap / 2
+        i = i + 1
+    return karray
+
+flowgen_ids = get_karray(FLOWGEN_BITMAP)
+
+if len(flowgen_ids) > NUM_LOCAL_CONTAINERS:
+    raise Exception('Number of available source (%d) are smaller than requested flow generator assignments (%d)' % (NUM_LOCAL_CONTAINERS, len(flowgen_ids)))
+
+os.system('sudo mkdir -p /tmp/bessd')
+os.system('sudo rm -f /tmp/bessd/vhost_user*.sock')
+    
+eth = scapy.Ether(src='02:fe:00:00:00:01', dst='02:fe:00:00:00:02')
+ip = scapy.IP(src='10.0.0.1', dst='10.0.0.2')
+tcp = scapy.TCP(sport=10001, dport=10002)
+payload = '0' * (MTU - len(eth/ip/tcp))
+pkt_template = bytes(eth/ip/tcp/payload)
+
+bess.add_worker(wid=0, core=0)
+bess.add_tc('w0root', policy='round_robin', wid=0)
+bess.add_tc('source_to_nf', parent='w0root', policy='round_robin')
+bess.add_tc('nf_to_sink', parent='w0root', policy='round_robin')
+
+sink::Sink()
+
+
+vport_id = 0
+flow_time = 10
+
+
+for i in range(NUM_LOCAL_CONTAINERS):
+    # Create a virtual port
+    v = 'v{}_{}'.format(i, vport_id)
+    vdev_str = 'eth_vhost_{},iface=/tmp/bessd/vhost_user{}_{}.sock,queues={}' \
+            .format(v, i, vport_id, NUM_QUEUES)
+    p = PMDPort(name=v, vdev=vdev_str, num_inc_q=NUM_QUEUES, \
+                num_out_q=NUM_QUEUES, size_inc_q=QSIZE, size_out_q=QSIZE)
+  
+    # Create a source/packet_gen
+    # defaultly generate flow all range
+    n_ = 1
+    k_ = 0
+    
+    if i < len(flowgen_ids):
+        n_ = FLOWGEN_TOTAL
+        k_ = flowgen_ids[i]
+
+    src_name = 'src_{}'.format(i);
+    FlowGenNK(name=src_name, template=pkt_template, pps=KPPS*1000,
+            flow_rate=NUM_FLOWS/flow_time, flow_duration=flow_time,
+            ip_src_range=NUM_FLOWS, 
+            arrival = 'uniform', duration='uniform',
+            n = n_, k = k_, quick_rampup = False) \
+            -> Timestamp(offset=54) \
+            -> QueueOut(port=p)
+    bess.attach_task(module_name=src_name, parent='source_to_nf')
+
+    # Measure to sink
+    qinc = QueueInc(port=p)
+    measure = Measure(name='measure_{}'.format(i))
+    qinc -> measure -> sink
+    qinc.attach_task(parent='nf_to_sink')
+
+print('Now you can run launch_s6_instance.py')

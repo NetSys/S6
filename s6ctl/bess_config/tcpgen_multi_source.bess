@@ -1,0 +1,65 @@
+import os
+import scapy.all as scapy
+import string
+
+PKT_SIZE = int($BESS_PKT_SIZE!'1514')
+KPPS = int ($BESS_KPPS!'1000') # 1 MPPS
+NUM_FLOWS = int($BESS_NUM_FLOWS!'65536')
+NUM_CONTAINERS = int($BESS_CONTAINERS!'1')
+NUM_VPORTS = 1
+NUM_QUEUES = 1
+
+# QEMU 2.8 supports up to 1024, older versions are hardcoded with 256
+QSIZE = int($BESS_QSIZE!'2048')
+
+os.system('sudo mkdir -p /tmp/bessd')
+os.system('sudo rm -f /tmp/bessd/vhost_user*.sock')
+
+
+def build_tcp(size):
+    eth = scapy.Ether(src='02:fe:00:00:00:01', dst='02:fe:00:00:00:02')
+    ip = scapy.IP(src='10.0.0.1', dst='10.0.0.2')
+    tcp = scapy.TCP(sport=10001, dport=10002)
+    header = eth/ip/tcp
+    payload = '0' * (size - len(header))
+    return bytes(header/payload)
+
+
+bess.add_worker(wid=0, core=0)
+bess.add_tc('w0root', policy='round_robin', wid=0)
+bess.add_tc('source_pps', parent='w0root', policy='rate_limit', 
+        resource='packet', limit={'packet': KPPS * NUM_CONTAINERS * 1000})
+bess.add_tc('source_to_nf', parent='source_pps', policy='round_robin')
+bess.add_tc('nf_to_sink', parent='w0root', policy='round_robin')
+
+sink::Sink()
+
+
+vport_id = 0
+
+for i in range(NUM_CONTAINERS):
+    # Create a virtual port
+    v = 'v{}_{}'.format(i, vport_id)
+    vdev_str = 'eth_vhost_{},iface=/tmp/bessd/vhost_user{}_{}.sock,queues={}' \
+            .format(v, i, vport_id, NUM_QUEUES)
+    p = PMDPort(name=v, vdev=vdev_str, num_inc_q=NUM_QUEUES, \
+                num_out_q=NUM_QUEUES, size_inc_q=QSIZE, size_out_q=QSIZE)
+  
+    # Create a source/packet_gen
+    src_name = 'src_{}'.format(i);
+    Source(name=src_name, pkt_size=PKT_SIZE) \
+            -> Rewrite(templates=[build_tcp(PKT_SIZE)]) \
+            -> RandomUpdateNK(n=NUM_CONTAINERS, k=i, fields=[
+                {'offset': 28, 'size': 2, 'min': 0, 'max': NUM_FLOWS}
+                ]) \
+            -> Timestamp(offset=54) \
+            -> QueueOut(port=p)
+    bess.attach_task(module_name=src_name, parent='source_to_nf')
+
+    # Measure to sink
+    qinc = QueueInc(port=p)
+    measure = Measure(name='measure_{}'.format(i))
+    qinc -> measure -> sink
+    qinc.attach_task(parent='nf_to_sink')
+
+print('Now you can run launch_s6_instance.py')

@@ -1,0 +1,8 @@
+C++ header file analyzer for reference/skeleton generator
+
+Prerequisite
+- python-clang
+	tested with python-clang-3.6
+- libclang-3.6.so
+
+Header file extension should be .hh

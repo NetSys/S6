@@ -1,0 +1,45 @@
+.PHONY: all clean cleanall boost
+
+BOOST_NAME=boost_1_61_0
+BOOST_VER=1.61.0
+TOOLSET=gcc
+
+LIB_BUILD=$(BOOST_NAME)/build
+LIB_BUILD_TMP=$(BOOST_NAME)/build_tmp
+
+BOOST_SRC=$(BOOST_NAME)
+BOOST_LIB=$(LIB_BUILD)/lib/libboost_coroutine.a $(LIB_BUILD)/lib/libboost_system.a $(LIB_BUILD)/lib/libboost_thread.a $(LIB_BUILD)/lib/libboost_context.a
+
+all: boost
+
+clean:
+	find . -mindepth 1 -maxdepth 1 -type d -name $(BOOST_NAME) | xargs rm -rf
+
+cleanall: clean
+	find . -mindepth 1 -maxdepth 1 -type f -name $(BOOST_NAME).tar.gz | xargs rm -f
+
+$(LIB_BUILD):
+	mkdir $(LIB_BUILD)
+
+$(LIB_BUILD_TMP):
+	mkdir $(LIB_BUILD_TMP)
+
+$(BOOST_NAME).tar.gz:
+	wget http://downloads.sourceforge.net/project/boost/boost/$(BOOST_VER)/$(BOOST_NAME).tar.gz
+
+$(BOOST_SRC): $(BOOST_NAME).tar.gz
+	tar xzvf $(BOOST_NAME).tar.gz
+
+BOOTSTRAP_COMMAND=./bootstrap.sh toolset=$(TOOLSET) --with-libraries=system,coroutine --prefix=../$(LIB_BUILD)
+
+# threading=single segmented-stacks=on
+#XXX remove valgrind=on when deploying
+B2_COMMAND=./b2 toolset=$(TOOLSET) variant=release link=static runtime-link=static --build-dir=../$(LIB_BUILD_TMP) --prefix=../$(LIB_BUILD) install
+
+boost: $(BOOST_SRC) $(LIB_BUILD) $(LIB_BUILD_TMP)  
+	cd $(BOOST_SRC); $(BOOTSTRAP_COMMAND)
+	cd $(BOOST_SRC); $(B2_COMMAND)
+	@rm -f $(LIB_BUILD)/lib/libcoroutine.a
+	ar -rcT $(LIB_BUILD)/lib/libcoroutine.a $(LIB_BUILD)/lib/*
+	@rm -f boost
+	ln -s $(BOOST_NAME) boost
