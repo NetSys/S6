@@ -14,9 +14,6 @@ commands = ['help', 'generate_all', 'generate', 'clean_all', 'clean']
 #                        microtask_directory (IN), 
 #                        object_directory (IN)]
 app_params = {}
-app_params['tests'] = ['../gen_source/test', 
-                        '../test',
-                        '../user_source/samples/objects'];
 app_params['samples'] = ['../gen_source/samples_sample', 
                         '../user_source/samples/apps/sample',
                         '../user_source/samples/objects'];
